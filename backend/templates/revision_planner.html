@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Adaptive Revision Planner</title>
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface2: #21262d;
+      --border: #30363d;
+      --accent: #7c3aed;
+      --accent2: #a855f7;
+      --high: #ef4444;
+      --medium: #f59e0b;
+      --low: #10b981;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --radius: 12px;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px 16px;
+    }
+
+    /* ── Header ── */
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    .header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #a855f7, #7c3aed, #3b82f6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
+    }
+    .header p {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    /* ── Main Layout ── */
+    .container { max-width: 900px; margin: 0 auto; }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .card-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* ── Upload Zone ── */
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 48px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: var(--accent2);
+      background: rgba(124, 58, 237, 0.05);
+    }
+    .upload-zone input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .upload-icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .upload-zone h3 { font-size: 1.1rem; margin-bottom: 6px; }
+    .upload-zone p { color: var(--muted); font-size: 0.85rem; }
+    .file-selected {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      background: rgba(124, 58, 237, 0.1);
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-top: 16px;
+    }
+    .file-selected.show { display: flex; }
+    .file-name { font-weight: 600; font-size: 0.9rem; }
+    .file-size { color: var(--muted); font-size: 0.8rem; }
+
+    /* ── Button ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: white;
+      width: 100%;
+      justify-content: center;
+      margin-top: 16px;
+    }
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    /* ── Loader ── */
+    .loader {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      padding: 40px;
+      text-align: center;
+    }
+    .loader.show { display: flex; }
+    .spinner {
+      width: 48px; height: 48px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent2);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loader-text { color: var(--muted); font-size: 0.9rem; }
+
+    /* ── Days Slider ── */
+    .slider-section { display: none; }
+    .slider-section.show { display: block; }
+
+    .days-display {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .days-number {
+      font-size: 3rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent2), #3b82f6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1;
+    }
+    .days-label { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
+    .mode-badge {
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+    .mode-full { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .mode-focused { background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); }
+    .mode-priority { background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .mode-crisis { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: var(--surface2);
+      outline: none;
+      margin: 8px 0;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: var(--accent2);
+      cursor: pointer;
+      box-shadow: 0 0 0 4px rgba(168, 85, 247, 0.2);
+      transition: box-shadow 0.2s;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+      box-shadow: 0 0 0 6px rgba(168, 85, 247, 0.3);
+    }
+    .slider-labels {
+      display: flex;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: 0.75rem;
+      margin-top: 4px;
+    }
+
+    /* ── Advice Banner ── */
+    .advice-banner {
+      background: rgba(124, 58, 237, 0.08);
+      border: 1px solid rgba(124, 58, 237, 0.25);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 0.88rem;
+      color: #c4b5fd;
+      margin-top: 16px;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    /* ── Stats Bar ── */
+    .stats-bar {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .stat-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 16px;
+      flex: 1;
+      min-width: 100px;
+      text-align: center;
+    }
+    .stat-value { font-size: 1.4rem; font-weight: 700; }
+    .stat-label { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+    .stat-high { color: var(--high); }
+    .stat-medium { color: var(--medium); }
+    .stat-low { color: var(--low); }
+    .stat-total { color: var(--accent2); }
+
+    /* ── Topic Cards ── */
+    .topics-grid { display: flex; flex-direction: column; gap: 14px; }
+
+    .topic-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      border-left: 4px solid transparent;
+      transition: transform 0.15s, border-color 0.15s;
+      animation: fadeInUp 0.3s ease both;
+    }
+    .topic-card:hover { transform: translateX(4px); }
+    .topic-card.high { border-left-color: var(--high); }
+    .topic-card.medium { border-left-color: var(--medium); }
+    .topic-card.low { border-left-color: var(--low); }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .topic-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .topic-name { font-size: 1rem; font-weight: 700; flex: 1; }
+    .topic-badges { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+
+    .priority-badge {
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+    .priority-high { background: rgba(239,68,68,0.15); color: var(--high); }
+    .priority-medium { background: rgba(245,158,11,0.15); color: var(--medium); }
+    .priority-low { background: rgba(16,185,129,0.15); color: var(--low); }
+
+    .score-badge {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 2px 8px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--accent2);
+    }
+
+    .topic-explanation {
+      font-size: 0.875rem;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-bottom: 10px;
+    }
+
+    .key-points { margin-bottom: 10px; }
+    .key-points-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .key-points ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .key-points ul li {
+      font-size: 0.82rem;
+      color: #c9d1d9;
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+    }
+    .key-points ul li::before {
+      content: "›";
+      color: var(--accent2);
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .topic-footer {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+    .topic-meta {
+      font-size: 0.78rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* ── Empty State ── */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+    }
+    .empty-icon { font-size: 3rem; margin-bottom: 16px; }
+
+    /* ── Error Banner ── */
+    .error-banner {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: #fca5a5;
+      font-size: 0.88rem;
+      display: none;
+      margin-top: 12px;
+    }
+    .error-banner.show { display: block; }
+
+    /* ── Progress Bar ── */
+    .score-bar-wrap { margin-top: 6px; }
+    .score-bar {
+      height: 4px;
+      border-radius: 2px;
+      background: var(--border);
+      overflow: hidden;
+    }
+    .score-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.5s ease;
+    }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      .header h1 { font-size: 1.5rem; }
+      .days-number { font-size: 2.2rem; }
+      .stats-bar { gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>🧠 Adaptive Revision Planner</h1>
+    <p>Upload your study material — AI analyzes topics and adapts your revision plan based on time left</p>
+  </div>
+
+  <!-- Step 1: Upload -->
+  <div class="card">
+    <div class="card-title">📄 Step 1 — Upload Study Document</div>
+
+    <div class="upload-zone" id="uploadZone">
+      <input type="file" id="fileInput" accept=".pdf,.txt,.md" />
+      <div class="upload-icon">📚</div>
+      <h3>Drag & drop or click to upload</h3>
+      <p>Supports PDF, TXT, Markdown</p>
+    </div>
+
+    <div class="file-selected" id="fileSelected">
+      <span style="font-size:1.4rem">📄</span>
+      <div>
+        <div class="file-name" id="fileName"></div>
+        <div class="file-size" id="fileSize"></div>
+      </div>
+    </div>
+
+    <div class="error-banner" id="errorBanner"></div>
+
+    <button class="btn btn-primary" id="analyzeBtn" disabled onclick="analyzeDocument()">
+      ✨ Analyze Your Document
+    </button>
+  </div>
+
+  <!-- Loader -->
+  <div class="loader" id="loader">
+    <div class="spinner"></div>
+    <div>
+      <div style="font-weight:600;margin-bottom:4px">Analyzing document with Gemini AI...</div>
+      <div class="loader-text">Extracting topics, scoring importance, building your plan</div>
+    </div>
+  </div>
+
+  <!-- Step 2: Days Slider -->
+  <div class="card slider-section" id="sliderSection">
+    <div class="card-title">📅 Step 2 — How many days until your exam?</div>
+
+    <div class="days-display">
+      <div>
+        <div class="days-number" id="daysNumber">15</div>
+        <div class="days-label">days remaining</div>
+      </div>
+      <div class="mode-badge" id="modeBadge">Focused Study Mode</div>
+    </div>
+
+    <input type="range" id="daysSlider" min="1" max="30" value="15" oninput="onSliderChange(this.value)" />
+    <div class="slider-labels">
+      <span>1 day (Crisis)</span>
+      <span>7 days</span>
+      <span>15 days</span>
+      <span>30 days (Full)</span>
+    </div>
+
+    <div class="advice-banner" id="adviceBanner">
+      💡 <span id="adviceText">Focus on High and Medium priority topics.</span>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div class="card slider-section" id="resultsSection">
+    <div class="card-title">📊 Your Personalized Revision Plan</div>
+
+    <!-- Stats -->
+    <div class="stats-bar" id="statsBar">
+      <div class="stat-item">
+        <div class="stat-value stat-total" id="statShown">-</div>
+        <div class="stat-label">Topics Shown</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value stat-high" id="statHigh">-</div>
+        <div class="stat-label">High Priority</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value stat-medium" id="statMedium">-</div>
+        <div class="stat-label">Medium Priority</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value stat-low" id="statLow">-</div>
+        <div class="stat-label">Low Priority</div>
+      </div>
+    </div>
+
+    <!-- Topics -->
+    <div class="topics-grid" id="topicsGrid">
+      <div class="empty-state">
+        <div class="empty-icon">🔍</div>
+        <p>Upload a document to see your revision plan</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ── State ──────────────────────────────────────────────────────────────────
+  let allTopics = [];
+  let currentDays = 15;
+  const API = '/api'; // Change if running on different port
+
+  // ── File Input ──────────────────────────────────────────────────────────────
+  const fileInput = document.getElementById('fileInput');
+  const uploadZone = document.getElementById('uploadZone');
+
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) handleFileSelect(file);
+  });
+
+  uploadZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadZone.classList.add('drag-over');
+  });
+  uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+  uploadZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) { fileInput.files = e.dataTransfer.files; handleFileSelect(file); }
+  });
+
+  function handleFileSelect(file) {
+    const allowed = ['application/pdf', 'text/plain', 'text/markdown'];
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!['pdf', 'txt', 'md'].includes(ext)) {
+      showError('Please upload a PDF, TXT, or Markdown file.');
+      return;
+    }
+    hideError();
+    document.getElementById('fileName').textContent = file.name;
+    document.getElementById('fileSize').textContent = formatSize(file.size);
+    document.getElementById('fileSelected').classList.add('show');
+    document.getElementById('analyzeBtn').disabled = false;
+  }
+
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  // ── Analyze Document ────────────────────────────────────────────────────────
+  async function analyzeDocument() {
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    const token = localStorage.getItem('access_token') || sessionStorage.getItem('access_token') || localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+
+    // Show loader
+    document.getElementById('loader').classList.add('show');
+    document.getElementById('analyzeBtn').disabled = true;
+    hideError();
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch(`${API}/revision/analyze`, {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        body: formData
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        showError(data.error || 'Analysis failed. Please try again.');
+        return;
+      }
+
+      allTopics = data.topics;
+      currentDays = parseInt(document.getElementById('daysSlider').value);
+
+      // Show slider + results sections
+      document.getElementById('sliderSection').classList.add('show');
+      document.getElementById('resultsSection').classList.add('show');
+
+      // Render initial plan
+      applyFilter(currentDays);
+
+    } catch (err) {
+      showError('Network error: ' + err.message);
+    } finally {
+      document.getElementById('loader').classList.remove('show');
+      document.getElementById('analyzeBtn').disabled = false;
+    }
+  }
+
+  // ── Slider Change ───────────────────────────────────────────────────────────
+  let sliderTimeout = null;
+  function onSliderChange(val) {
+    currentDays = parseInt(val);
+    document.getElementById('daysNumber').textContent = currentDays;
+
+    // Debounce filter call
+    clearTimeout(sliderTimeout);
+    sliderTimeout = setTimeout(() => {
+      if (allTopics.length > 0) applyFilter(currentDays);
+    }, 200);
+  }
+
+  // ── Apply Filter ────────────────────────────────────────────────────────────
+  async function applyFilter(days) {
+    const token = localStorage.getItem('access_token') || sessionStorage.getItem('access_token') || localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+
+    try {
+      const res = await fetch(`${API}/revision/filter`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ topics: allTopics, days_left: days, total_days: 30 })
+      });
+
+      const data = await res.json();
+      if (!res.ok) { showError(data.error || 'Filter failed'); return; }
+
+      renderResults(data);
+    } catch (err) {
+      // Fallback: client-side filter if API unreachable
+      renderResults(clientSideFilter(allTopics, days));
+    }
+  }
+
+  // ── Client-Side Fallback Filter ─────────────────────────────────────────────
+  function clientSideFilter(topics, days) {
+    const sorted = [...topics].sort((a, b) => b.importance_score - a.importance_score);
+    let filtered, mode, advice;
+
+    if (days >= 20) {
+      filtered = sorted;
+      mode = "Full Study Mode";
+      advice = "You have plenty of time! Cover all topics thoroughly and do practice questions.";
+    } else if (days >= 10) {
+      filtered = sorted.filter(t => t.priority === 'High' || t.priority === 'Medium');
+      mode = "Focused Study Mode";
+      advice = "Focus on High and Medium priority topics. Skip Low priority unless time allows.";
+    } else if (days >= 4) {
+      const high = sorted.filter(t => t.priority === 'High');
+      const med = sorted.filter(t => t.priority === 'Medium').slice(0, 2);
+      filtered = [...high, ...med];
+      mode = "Priority Mode";
+      advice = "Concentrate on High priority topics only. Skim top Medium topics if possible.";
+    } else {
+      filtered = sorted.filter(t => t.priority === 'High').slice(0, 5) || sorted.slice(0, 3);
+      mode = "Crisis Mode 🚨";
+      advice = "Only the most critical topics! Focus on memorizing key points. Do NOT attempt new topics.";
+    }
+
+    return { topics: filtered, mode, advice, days_left: days, topics_shown: filtered.length, topics_total: topics.length };
+  }
+
+  // ── Render Results ──────────────────────────────────────────────────────────
+  function renderResults(data) {
+    const { topics, mode, advice, topics_shown, topics_total } = data;
+
+    // Update mode badge
+    const badge = document.getElementById('modeBadge');
+    badge.textContent = mode;
+    badge.className = 'mode-badge ' + getModeClass(mode);
+
+    // Update advice
+    document.getElementById('adviceText').textContent = advice;
+
+    // Update stats
+    document.getElementById('statShown').textContent = topics_shown;
+    document.getElementById('statHigh').textContent = topics.filter(t => t.priority === 'High').length;
+    document.getElementById('statMedium').textContent = topics.filter(t => t.priority === 'Medium').length;
+    document.getElementById('statLow').textContent = topics.filter(t => t.priority === 'Low').length;
+
+    // Render topic cards
+    const grid = document.getElementById('topicsGrid');
+    if (!topics || topics.length === 0) {
+      grid.innerHTML = `<div class="empty-state"><div class="empty-icon">😅</div><p>No topics to show for this filter.</p></div>`;
+      return;
+    }
+
+    grid.innerHTML = topics.map((t, i) => topicCard(t, i)).join('');
+  }
+
+  function topicCard(t, index) {
+    const priorityClass = (t.priority || 'low').toLowerCase();
+    const scoreWidth = (t.importance_score / 10) * 100;
+    const scoreColor = t.priority === 'High' ? '#ef4444' : t.priority === 'Medium' ? '#f59e0b' : '#10b981';
+    const keyPoints = (t.key_points || []).map(p => `<li>${p}</li>`).join('');
+    const context = t.days_context || '';
+    const hours = t.estimated_hours ? `⏱ ~${t.estimated_hours}h` : '';
+
+    return `
+    <div class="topic-card ${priorityClass}" style="animation-delay:${index * 0.05}s">
+      <div class="topic-header">
+        <div class="topic-name">${t.topic || 'Unknown Topic'}</div>
+        <div class="topic-badges">
+          <span class="priority-badge priority-${priorityClass}">${t.priority || 'Low'}</span>
+          <span class="score-badge">⭐ ${t.importance_score}/10</span>
+        </div>
+      </div>
+
+      <div class="score-bar-wrap">
+        <div class="score-bar">
+          <div class="score-bar-fill" style="width:${scoreWidth}%;background:${scoreColor}"></div>
+        </div>
+      </div>
+
+      <p class="topic-explanation" style="margin-top:10px">${t.explanation || ''}</p>
+
+      ${keyPoints ? `
+      <div class="key-points">
+        <div class="key-points-title">Key Points</div>
+        <ul>${keyPoints}</ul>
+      </div>` : ''}
+
+      <div class="topic-footer">
+        ${hours ? `<span class="topic-meta">⏱ ${t.estimated_hours}h estimated</span>` : ''}
+        ${context ? `<span class="topic-meta">💡 ${context}</span>` : ''}
+      </div>
+    </div>`;
+  }
+
+  function getModeClass(mode) {
+    if (mode.includes('Full')) return 'mode-full';
+    if (mode.includes('Focused')) return 'mode-focused';
+    if (mode.includes('Priority')) return 'mode-priority';
+    return 'mode-crisis';
+  }
+
+  // ── Error Handling ──────────────────────────────────────────────────────────
+  function showError(msg) {
+    const el = document.getElementById('errorBanner');
+    el.textContent = '⚠️ ' + msg;
+    el.classList.add('show');
+  }
+  function hideError() {
+    document.getElementById('errorBanner').classList.remove('show');
+  }
+</script>
+
+</body>
+</html>

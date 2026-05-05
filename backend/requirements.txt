@@ -1,0 +1,32 @@
+# ── Core Web Framework ──────────────────────────────────────
+flask==3.0.3
+flask-jwt-extended==4.6.0
+flask-cors==4.0.1
+flask-pymongo==2.3.0
+
+# ── Database ─────────────────────────────────────────────────
+pymongo==4.7.3
+dnspython==2.6.1
+
+# ── AI / API Clients ─────────────────────────────────────────
+requests==2.32.3
+python-dotenv==1.0.1
+
+# ── PDF & Document Processing ────────────────────────────────
+PyMuPDF==1.24.5                # Fast PDF text extraction (fitz)
+pdfplumber==0.11.0             # Alternative PDF extractor
+
+# ── Computer Vision & Emotion Detection ──────────────────────
+opencv-python-headless==4.10.0.82
+tensorflow>=2.15.0             # Required for DeepFace/FER
+deepface==0.0.92               # Primary emotion detector
+fer==22.5.1                    # Secondary/Fallback detector
+
+# ── NLP Utilities ────────────────────────────────────────────
+nltk==3.8.1                    # Used for quiz distractors (WordNet)
+
+# ── Production Utilities ─────────────────────────────────────
+gunicorn==22.0.0               # Production WSGI server
+werkzeug==3.0.3
+Pillow==10.3.0
+numpy>=1.24.0

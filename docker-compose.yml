@@ -1,0 +1,62 @@
+version: "3.9"
+
+services:
+  # ── MongoDB ──────────────────────────────────────────────────────────────────
+  mongo:
+    image: mongo:7.0
+    container_name: ai_learner_mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: ai_learning_db
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017"
+    networks:
+      - learner_net
+
+  # ── Backend ───────────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ai_learner_backend
+    restart: unless-stopped
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/ai_learning_db
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-prod}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-me-jwt}
+      - YOUTUBE_API_KEY=${YOUTUBE_API_KEY:-}
+      - FLASK_ENV=production
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend:/app
+      - uploads_data:/app/uploads
+    depends_on:
+      - mongo
+    networks:
+      - learner_net
+
+  # ── Frontend (served via Nginx) ──────────────────────────────────────────────
+  frontend:
+    image: nginx:alpine
+    container_name: ai_learner_frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./frontend/templates:/usr/share/nginx/html
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - backend
+    networks:
+      - learner_net
+
+volumes:
+  mongo_data:
+  uploads_data:
+
+networks:
+  learner_net:
+    driver: bridge
