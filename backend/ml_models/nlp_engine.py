@@ -12,31 +12,35 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# ── API-based NLP (Memory Efficient) ──────────────────────────────────────────
-def _get_api_response(prompt: str, max_tokens: int = 1000) -> str:
-    """Helper for Groq/Gemini API calls."""
-    api_key = os.getenv("GROQ_API_KEY", "").strip()
-    if not api_key:
-        return "Error: API key missing."
-    
-    try:
-        url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "model": "llama-3.1-8b-instant",
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.5,
-            "max_tokens": max_tokens
-        }
-        r = requests.post(url, headers=headers, json=payload, timeout=30)
-        if r.ok:
-            return r.json()["choices"][0]["message"]["content"]
-    except Exception as e:
-        logger.error(f"API call failed: {e}")
-    return ""
+# ── Lazy-loaded models (only import when first used) ──────────────────────────
+_summarizer = None
+_qa_pipeline = None
+
+
+def _get_summarizer():
+    global _summarizer
+    if _summarizer is None:
+        from transformers import pipeline
+        logger.info("Loading summarization model (first use)…")
+        _summarizer = pipeline(
+    "summarization",
+    model="sshleifer/distilbart-cnn-12-6",
+    framework="pt"
+)
+    return _summarizer
+
+
+def _get_qa_pipeline():
+    global _qa_pipeline
+    if _qa_pipeline is None:
+        from transformers import pipeline
+        logger.info("Loading QA model (first use)…")
+        _qa_pipeline = pipeline(
+            "question-answering",
+            model="deepset/roberta-base-squad2",
+            device=-1,
+        )
+    return _qa_pipeline
 
 
 # ── PDF Extraction ─────────────────────────────────────────────────────────────
@@ -110,12 +114,28 @@ def summarize_text_groq(text: str) -> str:
         return summarize_text(text)
 
 def summarize_text(text: str) -> str:
-    """Return a detailed summary using Groq API."""
-    if not text or len(text.split()) < 20:
+    """Return a concise summary of the given text."""
+    if not text or len(text.split()) < 50:
         return text
-    
-    prompt = f"Summarize this academic text in detail (at least 5 bullet points):\n\n{text[:15000]}"
-    return _get_api_response(prompt)
+
+    summarizer = _get_summarizer()
+
+    # Limit extreme long inputs
+    max_chars = 4000
+    text = text[:max_chars]
+
+    try:
+        result = summarizer(
+            text,
+            max_length=150,
+            min_length=40,
+            do_sample=False,
+            truncation=True,
+        )
+        return result[0]["summary_text"]
+    except Exception as e:
+        logger.error(f"Summarization failed: {e}")
+        return text[:300]
 
 
 def _chunk_text(text: str, max_words: int = 800) -> list:
@@ -128,10 +148,22 @@ def _chunk_text(text: str, max_words: int = 800) -> list:
 
 # ── Question Answering ────────────────────────────────────────────────────────
 def answer_question(question: str, context: str) -> dict:
-    """Return answer using Groq API."""
-    prompt = f"Context: {context[:15000]}\n\nQuestion: {question}\n\nAnswer concisely based ONLY on the context above."
-    ans = _get_api_response(prompt, max_tokens=300)
-    return {"answer": ans, "score": 1.0}
+    """Return {answer, score, start, end} using extractive QA."""
+    if not question or not context:
+        return {"answer": "Insufficient context provided.", "score": 0.0}
+
+    # Truncate context to ~3000 words for the model
+    context_trunc = " ".join(context.split()[:3000])
+    try:
+        qa   = _get_qa_pipeline()
+        result = qa(question=question, context=context_trunc)
+        return {
+            "answer": result.get("answer", ""),
+            "score":  round(result.get("score", 0.0), 4),
+        }
+    except Exception as e:
+        logger.error(f"QA failed: {e}")
+        return {"answer": "Could not find an answer in the document.", "score": 0.0}
 
 
 # ── Keyword / Topic Extraction ────────────────────────────────────────────────
@@ -159,14 +191,24 @@ def extract_key_topics(text: str, n: int = 10) -> list:
 
 # ── Translation ───────────────────────────────────────────────────────────────
 def translate_text(text: str, target_lang: str, source_lang: str = "en") -> str:
-    """Translate text using Groq API (fallback to Google)."""
+    """
+    Translate text using Helsinki-NLP MarianMT models.
+    Falls back to googletrans if model not available.
+    """
     if target_lang == source_lang or target_lang == "en":
         return text
 
-    prompt = f"Translate this text from {source_lang} to {target_lang}:\n\n{text}"
-    translated = _get_api_response(prompt)
-    if translated and "Error" not in translated:
-        return translated
+    # Try MarianMT first
+    try:
+        from transformers import MarianMTModel, MarianTokenizer
+        model_name = f"Helsinki-NLP/opus-mt-{source_lang}-{target_lang}"
+        tokenizer  = MarianTokenizer.from_pretrained(model_name)
+        model      = MarianMTModel.from_pretrained(model_name)
+        tokens     = tokenizer([text], return_tensors="pt", padding=True, truncation=True)
+        translated = model.generate(**tokens)
+        return tokenizer.decode(translated[0], skip_special_tokens=True)
+    except Exception:
+        pass
 
     # Fallback: googletrans
     try:
