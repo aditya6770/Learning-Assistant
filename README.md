@@ -1,5 +1,4 @@
 # 🎓 Personalized Learning Assistant Using Artificial Intelligence
-### B.Tech Final Year Project — Complete Implementation Guide
 
 ---
 
