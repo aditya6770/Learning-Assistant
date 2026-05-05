@@ -10,7 +10,6 @@ Model: We use the `fer` library (wraps TF/Keras + OpenCV) which downloads
        a pretrained FER2013 model automatically.
 Fallback: If `fer` is unavailable we use haar-cascade + a rule-based heuristic.
 """
-from deepface import DeepFace
 import base64, logging, cv2, numpy as np
 from datetime import datetime
 
@@ -47,6 +46,7 @@ def analyze_frame(frame_b64: str) -> dict:
 
     # 🔥 DeepFace detection (NEW)
     try:
+        from deepface import DeepFace
         result = DeepFace.analyze(
         img,
         actions=['emotion'],

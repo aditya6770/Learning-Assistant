@@ -8,7 +8,6 @@ Endpoints:
   GET  /api/emotion/session-history  — past sessions for the user
   GET  /api/emotion/leaderboard      — emotion score leaderboard (optional)
 """
-from ml_models.emotion_detector import analyze_frame
 import os, base64, logging, json, time
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, Response, stream_with_context
@@ -283,6 +282,7 @@ def analyze():
 
     # ── Simulated face emotion (real model would process `frame`) ──
     # Real ML-based emotion detection
+    from ml_models.emotion_detector import analyze_frame
     det = analyze_frame(frame)
 
     raw_emotion = det.get("emotion", "unknown")
