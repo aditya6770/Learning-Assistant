@@ -16,13 +16,8 @@ python-dotenv==1.0.1
 PyMuPDF==1.24.5                # Fast PDF text extraction (fitz)
 pdfplumber==0.11.0             # Alternative PDF extractor
 
-# ── Computer Vision & Emotion Detection ──────────────────────
+# ── Computer Vision & Emotion Detection (Lightweight) ────────
 opencv-python-headless==4.10.0.82
-tensorflow>=2.15.0             # Required for DeepFace/FER
-keras>=2.15.0                  # Explicitly required for MTCNN/DeepFace
-tf-keras>=2.15.0               # Compatibility layer for newer TensorFlow
-deepface==0.0.92               # Primary emotion detector
-fer==22.5.1                    # Secondary/Fallback detector
 
 # ── NLP Utilities ────────────────────────────────────────────
 nltk==3.8.1                    # Used for quiz distractors (WordNet)
