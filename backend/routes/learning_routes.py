@@ -94,8 +94,8 @@ def upload_document():
             logger.warning(f"[UPLOAD] Read {len(content)} chars from text file")
         except Exception as e:
             logger.error(f"[UPLOAD] Text file read failed: {e}")
-
-    if not content or len(content.strip()) < 10:
+    logger.warning(f"[UPLOAD] FIRST 500 chars:\n{content[:500]}")
+    if not content or len(content.strip()) < 100:
         logger.error(f"[UPLOAD] Content extraction failed. Content: '{content[:100] if content else 'EMPTY'}'")
         try:
             os.remove(path)
