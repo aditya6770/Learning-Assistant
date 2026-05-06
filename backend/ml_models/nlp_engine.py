@@ -1,25 +1,36 @@
 """
-NLP Engine — Groq-powered (no local models)
-────────────────────────────────────────────
-- PDF text extraction (PyMuPDF / pdfplumber / OCR fallback)
+NLP Engine — Groq-powered + OpenRouter Vision OCR
+────────────────────────────────────────────────────
+- PDF text extraction (PyMuPDF → pdfplumber → OpenRouter Vision OCR)
 - Summarization     → Groq llama-3.1-8b-instant
 - Question Answering → Groq llama-3.1-8b-instant
 - Key topic extraction → YAKE (lightweight, no torch)
 - Translation        → Groq / googletrans
 """
-import os, re, logging, requests, json
+import os, re, logging, requests, json, base64
 from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-GROQ_URL   = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "llama-3.1-8b-instant"
+GROQ_URL        = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL      = "llama-3.1-8b-instant"
+OPENROUTER_URL  = "https://openrouter.ai/api/v1/chat/completions"
+OPENROUTER_MODEL = "nvidia/llama-3.1-nemotron-nano-vl-8b-v1:free"
 
 
 def _groq_headers():
     return {
         "Authorization": f"Bearer {os.getenv('GROQ_API_KEY', '')}",
         "Content-Type": "application/json"
+    }
+
+
+def _openrouter_headers():
+    return {
+        "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY', '')}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://learning-assistant-a7n9.onrender.com",
+        "X-Title": "AI Learning Assistant"
     }
 
 
@@ -48,31 +59,29 @@ def _groq_chat(prompt: str, system: str = "You are a helpful AI assistant.", max
 # ── PDF Extraction ─────────────────────────────────────────────
 def extract_text_from_pdf(file_path: str) -> str:
     """
-    Extract plain text from PDF.
-    Tries: PyMuPDF → pdfplumber → OCR (for scanned/image PDFs)
+    Extract text from PDF:
+    1. PyMuPDF      (fast, text-based PDFs)
+    2. pdfplumber   (fallback for text PDFs)
+    3. OpenRouter Vision OCR (scanned/image PDFs)
     """
     if not os.path.exists(file_path):
-        logger.error(f"[PDF] File does not exist: {file_path}")
+        logger.error(f"[PDF] File not found: {file_path}")
         return ""
 
-    file_size = os.path.getsize(file_path)
-    logger.warning(f"[PDF] File size: {file_size} bytes")
-
-    if file_size == 0:
-        logger.error("[PDF] File is empty (0 bytes)")
+    if os.path.getsize(file_path) == 0:
+        logger.error("[PDF] File is empty")
         return ""
 
     # ── Method 1: PyMuPDF ──
     try:
         import fitz
-        doc   = fitz.open(file_path)
-        pages = len(doc)
-        text  = "\n".join(page.get_text() for page in doc)
+        doc  = fitz.open(file_path)
+        text = "\n".join(page.get_text() for page in doc)
         doc.close()
-        logger.warning(f"[PDF] PyMuPDF: {len(text)} chars from {pages} pages")
         if text.strip():
+            logger.warning(f"[PDF] PyMuPDF success: {len(text)} chars")
             return _clean_text(text)
-        logger.warning("[PDF] PyMuPDF returned empty — trying pdfplumber")
+        logger.warning("[PDF] PyMuPDF empty — trying pdfplumber")
     except Exception as e:
         logger.warning(f"[PDF] PyMuPDF failed: {e}")
 
@@ -81,41 +90,103 @@ def extract_text_from_pdf(file_path: str) -> str:
         import pdfplumber
         with pdfplumber.open(file_path) as pdf:
             text = "\n".join(p.extract_text() or "" for p in pdf.pages)
-        logger.warning(f"[PDF] pdfplumber: {len(text)} chars")
         if text.strip():
+            logger.warning(f"[PDF] pdfplumber success: {len(text)} chars")
             return _clean_text(text)
-        logger.warning("[PDF] pdfplumber returned empty — trying OCR")
+        logger.warning("[PDF] pdfplumber empty — trying OpenRouter Vision OCR")
     except Exception as e:
-        logger.error(f"[PDF] pdfplumber failed: {e}")
+        logger.warning(f"[PDF] pdfplumber failed: {e}")
 
-    # ── Method 3: OCR (for scanned/image-based PDFs) ──
+    # ── Method 3: OpenRouter Vision OCR ──
+    return _openrouter_vision_ocr(file_path)
+
+
+def _openrouter_vision_ocr(file_path: str) -> str:
+    """
+    Convert PDF pages to images and use OpenRouter Vision
+    (Nemotron Nano 12B VL) to extract text.
+    No system packages needed — uses PyMuPDF for rendering.
+    """
+    api_key = os.getenv("OPENROUTER_API_KEY", "")
+    if not api_key:
+        logger.error("[OCR] OPENROUTER_API_KEY not set")
+        return ""
+
     try:
-        logger.warning("[PDF] Attempting OCR extraction...")
-        import pytesseract
-        from pdf2image import convert_from_path
-        from PIL import Image
+        import fitz
+        logger.warning("[OCR] Starting OpenRouter Vision OCR...")
 
-        pages = convert_from_path(file_path, dpi=200)
-        logger.warning(f"[PDF] OCR: converted {len(pages)} pages to images")
+        doc       = fitz.open(file_path)
+        all_text  = []
+        max_pages = min(len(doc), 5)  # max 5 pages to stay within limits
 
-        ocr_text = ""
-        for i, page in enumerate(pages):
-            page_text = pytesseract.image_to_string(page, lang="eng")
-            ocr_text += page_text + "\n"
-            logger.warning(f"[PDF] OCR page {i+1}: {len(page_text)} chars")
+        for page_num in range(max_pages):
+            page = doc[page_num]
 
-        if ocr_text.strip():
-            logger.warning(f"[PDF] OCR total: {len(ocr_text)} chars")
-            return _clean_text(ocr_text)
+            # Render page to JPEG image at 150 DPI
+            mat      = fitz.Matrix(150/72, 150/72)
+            pix      = page.get_pixmap(matrix=mat)
+            img_bytes = pix.tobytes("jpeg")
+            b64_image = base64.b64encode(img_bytes).decode("utf-8")
+
+            logger.warning(f"[OCR] Sending page {page_num + 1}/{max_pages} to OpenRouter...")
+
+            try:
+                r = requests.post(
+                    OPENROUTER_URL,
+                    headers=_openrouter_headers(),
+                    json={
+                        "model": OPENROUTER_MODEL,
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": [
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {
+                                            "url": f"data:image/jpeg;base64,{b64_image}"
+                                        }
+                                    },
+                                    {
+                                        "type": "text",
+                                        "text": (
+                                            "Extract ALL text from this image exactly as it appears. "
+                                            "Preserve the structure and formatting. "
+                                            "Return only the extracted text, nothing else."
+                                        )
+                                    }
+                                ]
+                            }
+                        ],
+                        "max_tokens": 2000,
+                        "temperature": 0.1
+                    },
+                    timeout=60
+                )
+
+                if r.ok:
+                    page_text = r.json()["choices"][0]["message"]["content"]
+                    all_text.append(page_text)
+                    logger.warning(f"[OCR] Page {page_num+1}: {len(page_text)} chars")
+                else:
+                    logger.error(f"[OCR] OpenRouter error on page {page_num+1}: {r.status_code} {r.text[:200]}")
+
+            except Exception as e:
+                logger.error(f"[OCR] Page {page_num+1} request failed: {e}")
+
+        doc.close()
+
+        if all_text:
+            full_text = "\n\n".join(all_text)
+            logger.warning(f"[OCR] Total extracted: {len(full_text)} chars from {max_pages} pages")
+            return _clean_text(full_text)
         else:
-            logger.error("[PDF] OCR also returned empty text")
-    except ImportError as e:
-        logger.error(f"[PDF] OCR library missing: {e}")
-    except Exception as e:
-        logger.error(f"[PDF] OCR failed: {e}")
+            logger.error("[OCR] OpenRouter Vision returned no text")
+            return ""
 
-    logger.error("[PDF] All extraction methods failed")
-    return ""
+    except Exception as e:
+        logger.error(f"[OCR] OpenRouter Vision OCR completely failed: {e}")
+        return ""
 
 
 def _clean_text(text: str) -> str:
