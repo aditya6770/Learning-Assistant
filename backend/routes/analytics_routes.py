@@ -11,6 +11,12 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from bson import ObjectId
 from datetime import datetime, timedelta
 from collections import defaultdict
+from bson import ObjectId
+
+def serialize(obj):
+    if isinstance(obj, ObjectId):
+        return str(obj)
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 analytics_bp = Blueprint("analytics", __name__)
 
@@ -462,12 +468,15 @@ def advanced_analytics():
         "line_data": line_data,
         "speed_acc_data": speed_acc_data,
         "history": history_10,
-        "challenge_history": list(db.challenge_attempts.find(
-            {"user_id": user_id}, 
-            {"date": "$submitted_at", "score": 1, "percentage": 1, "type": 1},
-            sort=[("submitted_at", -1)],
-            limit=10
-        ))
+        "challenge_history": [
+             {**{k: str(v) if isinstance(v, ObjectId) else v for k, v in doc.items()}, "_id": str(doc["_id"])}
+             for doc in db.challenge_attempts.find(
+                 {"user_id": user_id},
+                 {"submitted_at": 1, "score": 1, "percentage": 1, "type": 1},
+                 sort=[("submitted_at", -1)],
+                 limit=10
+             )
+         ]
     }), 200
 
 @analytics_bp.route("/compare/<target_user_id>", methods=["GET"])
