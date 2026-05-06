@@ -28,5 +28,5 @@ nltk==3.8.1
 # ── Production Utilities ─────────────────────────────────────
 gunicorn==22.0.0
 werkzeug==3.0.3
-Pillow==10.3.0
+Pillow==10.4.0
 numpy>=1.24.0          # ← constrained for TF 2.13.x
