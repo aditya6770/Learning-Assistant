@@ -18,7 +18,7 @@ pdfplumber==0.11.0
 
 # ── Computer Vision & Emotion Detection ──────────────────────
 opencv-python-headless==4.10.0.82
-tensorflow-cpu==2.13.1          # ← changed from 2.15.0
+         # ← changed from 2.15.0
 deepface==0.0.93                # ← pinned
 fer==22.5.1
 
@@ -29,4 +29,4 @@ nltk==3.8.1
 gunicorn==22.0.0
 werkzeug==3.0.3
 Pillow==10.3.0
-numpy>=1.24.0,<1.25.0           # ← constrained for TF 2.13.x
+numpy>=1.24.0          # ← constrained for TF 2.13.x
