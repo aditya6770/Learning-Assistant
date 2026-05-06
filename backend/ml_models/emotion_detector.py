@@ -10,7 +10,13 @@ Model: We use the `fer` library (wraps TF/Keras + OpenCV) which downloads
        a pretrained FER2013 model automatically.
 Fallback: If `fer` is unavailable we use haar-cascade + a rule-based heuristic.
 """
-from deepface import DeepFace
+try:
+    from fer import FER
+    _fer_detector = FER(mtcnn=False)
+    FER_AVAILABLE = True
+except Exception:
+    _fer_detector = None
+    FER_AVAILABLE = False
 import base64, logging, cv2, numpy as np
 from datetime import datetime
 
@@ -47,46 +53,36 @@ def analyze_frame(frame_b64: str) -> dict:
 
     # 🔥 DeepFace detection (NEW)
     try:
-        result = DeepFace.analyze(
-        img,
-        actions=['emotion'],
-        enforce_detection=False
-        )
-        if isinstance(result, list):
-            result = result[0]
+        if not FER_AVAILABLE or _fer_detector is None:
+            raise Exception("FER not available")
 
-        emotion_data = result.get('emotion', {})
-        emotion_data = {k: float(v) for k, v in emotion_data.items()}
-        dominant_emotion = result.get('dominant_emotion', 'neutral')
+        rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        result = _fer_detector.detect_emotions(rgb)
 
-        confidence = float(max(emotion_data.values()) / 100)
+        if not result:
+            return _empty_result(face_detected=False)
+
+        emotions = result[0]["emotions"]
+        dominant_emotion = max(emotions, key=emotions.get)
+        confidence = float(emotions[dominant_emotion])
 
         attention_map = {
-        "happy": 0.9,
-        "neutral": 0.7,
-        "surprise": 0.75,
-        "sad": 0.4,
-        "angry": 0.3,
-        "fear": 0.35,
-        "disgust": 0.2
+        "happy": 0.9, "neutral": 0.7, "surprise": 0.75,
+        "sad": 0.4, "angry": 0.3, "fear": 0.35, "disgust": 0.2
          }
-
         attention_score = float(attention_map.get(dominant_emotion, 0.5))
 
-        print("DEEPFACE EMOTION:", dominant_emotion)
-        print("ALL EMOTIONS:", emotion_data)
-
         return {
-            "emotion": str(dominant_emotion),
-            "confidence": float(confidence),
-            "attention_score": float(attention_score),
-            "face_detected": True,
-            "timestamp": datetime.utcnow().isoformat(),
+        "emotion": str(dominant_emotion),
+        "confidence": confidence,
+        "attention_score": attention_score,
+        "face_detected": True,
+        "timestamp": datetime.utcnow().isoformat(),
         }
 
     except Exception as e:
-         print("DeepFace error:", e)
-         return _empty_result(face_detected=False)
+        print("FER error:", e)
+        return _haar_analyze(img)   # falls back to haar cascade
     
 
 def _decode_frame(b64_str: str) -> np.ndarray:
