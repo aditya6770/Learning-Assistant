@@ -17,10 +17,9 @@ PyMuPDF==1.24.5
 pdfplumber==0.11.0
 
 # ── Computer Vision & Emotion Detection ──────────────────────
-opencv-python-headless==4.10.0.82
-         # ← changed from 2.15.0
-deepface==0.0.93                # ← pinned
-fer==22.5.1
+# Lightweight emotion detection (no TensorFlow required)
+opencv-python-headless==4.8.1.78
+tf-keras-applications==1.0.0
 
 # ── NLP Utilities ────────────────────────────────────────────
 nltk==3.8.1
