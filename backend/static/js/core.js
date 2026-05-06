@@ -3,7 +3,7 @@
    ═══════════════════════════════════════════════════════════ */
 
 // ── Global State ─────────────────────────────────────────────
-const API = 'http://127.0.0.1:5000/api';
+const API = "https://learning-assistant-a7n9.onrender.com/api";
 let TOKEN = sessionStorage.getItem('token') || '';
 let USER = JSON.parse(sessionStorage.getItem('user') || 'null');
 let documents = [];
