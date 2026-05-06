@@ -876,6 +876,7 @@ def quiz_leaderboard():
         rows = list(db.quiz_attempts.find(query, {"answers": 0}, sort=[("completed_at", -1)], limit=50))
         for r in rows:
             r["_id"] = str(r["_id"])
+            r["quiz_id"] = str(r["quiz_id"]) if r.get("quiz_id") else ""
             if "completed_at" in r:
                 r["completed_at"] = r["completed_at"].isoformat()
         return jsonify({
