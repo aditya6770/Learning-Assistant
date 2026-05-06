@@ -41,6 +41,7 @@ def _allowed(filename: str) -> bool:
 @jwt_required()
 def upload_document():
     user_id = get_jwt_identity()
+
     if "file" not in request.files:
         return jsonify({"error": "No file part in request"}), 400
 
@@ -48,37 +49,86 @@ def upload_document():
     if file.filename == "" or not _allowed(file.filename):
         return jsonify({"error": "Invalid or unsupported file type"}), 400
 
-    ext      = file.filename.rsplit(".", 1)[1].lower()
-    unique   = f"{uuid.uuid4().hex}.{ext}"
-    safe     = secure_filename(unique)
-    path     = os.path.join(current_app.config["UPLOAD_FOLDER"], safe)
-    file.save(path)
+    ext    = file.filename.rsplit(".", 1)[1].lower()
+    unique = f"{uuid.uuid4().hex}.{ext}"
+    safe   = secure_filename(unique)
 
-    # Extract text
-    if ext == "pdf":
-        content = extract_text_from_pdf(path)
-    else:
-        with open(path, "r", errors="ignore") as f:
-            content = f.read()
+    # ── Ensure upload folder exists ──
+    upload_folder = current_app.config.get("UPLOAD_FOLDER", "/tmp/uploads")
+    os.makedirs(upload_folder, exist_ok=True)
+    path = os.path.join(upload_folder, safe)
 
-    if not content:
+    # ── Debug logging ──
+    logger.warning(f"[UPLOAD] Upload folder: {upload_folder}")
+    logger.warning(f"[UPLOAD] Saving to: {path}")
+    logger.warning(f"[UPLOAD] Folder exists: {os.path.exists(upload_folder)}")
+
+    try:
+        file.save(path)
+    except Exception as e:
+        logger.error(f"[UPLOAD] File save failed: {e}")
+        return jsonify({"error": f"File save failed: {str(e)}"}), 500
+
+    # ── Verify file saved correctly ──
+    if not os.path.exists(path):
+        logger.error(f"[UPLOAD] File not found after save: {path}")
+        return jsonify({"error": "File could not be saved on server"}), 500
+
+    file_size = os.path.getsize(path)
+    logger.warning(f"[UPLOAD] File saved. Size: {file_size} bytes")
+
+    if file_size == 0:
         os.remove(path)
+        return jsonify({"error": "Uploaded file is empty"}), 422
+
+    # ── Extract text ──
+    content = ""
+    if ext == "pdf":
+        logger.warning(f"[UPLOAD] Extracting PDF text...")
+        content = extract_text_from_pdf(path)
+        logger.warning(f"[UPLOAD] Extracted {len(content)} chars from PDF")
+    else:
+        try:
+            with open(path, "r", errors="ignore") as f:
+                content = f.read()
+            logger.warning(f"[UPLOAD] Read {len(content)} chars from text file")
+        except Exception as e:
+            logger.error(f"[UPLOAD] Text file read failed: {e}")
+
+    if not content or len(content.strip()) < 10:
+        logger.error(f"[UPLOAD] Content extraction failed. Content: '{content[:100] if content else 'EMPTY'}'")
+        try:
+            os.remove(path)
+        except:
+            pass
         return jsonify({"error": "Could not extract text from file"}), 422
 
-    # Summarize + extract topics
-    summary   = summarize_text(content)
-    topics    = extract_key_topics(content)
+    # ── Summarize + extract topics ──
+    logger.warning(f"[UPLOAD] Summarizing {len(content)} chars...")
+    try:
+        summary = summarize_text(content)
+    except Exception as e:
+        logger.error(f"[UPLOAD] Summarization failed: {e}")
+        summary = content[:500]
+
+    try:
+        topics = extract_key_topics(content)
+    except Exception as e:
+        logger.error(f"[UPLOAD] Topic extraction failed: {e}")
+        topics = []
+
+    logger.warning(f"[UPLOAD] Summary length: {len(summary)}, Topics: {topics}")
 
     doc = {
-        "user_id": user_id,
-        "filename": safe,
+        "user_id":       user_id,
+        "filename":      safe,
         "original_name": file.filename,
-        "file_path": path,
-        "content_text": content[:50000],   # cap to 50k chars in DB
-        "language": request.form.get("language", "en"),
-        "summary": summary,
-        "key_topics": topics,
-        "uploaded_at": __import__("datetime").datetime.utcnow(),
+        "file_path":     path,
+        "content_text":  content[:50000],
+        "language":      request.form.get("language", "en"),
+        "summary":       summary,
+        "key_topics":    topics,
+        "uploaded_at":   __import__("datetime").datetime.utcnow(),
     }
 
     db  = get_db()
@@ -87,6 +137,7 @@ def upload_document():
     doc.pop("file_path", None)
     doc.pop("content_text", None)
 
+    logger.warning(f"[UPLOAD] Document saved to DB with id: {doc['_id']}")
     return jsonify({"message": "Document uploaded successfully", "document": doc}), 201
 
 
@@ -98,7 +149,7 @@ def list_documents():
     db      = get_db()
     docs    = list(db.documents.find(
         {"user_id": user_id},
-        {"content_text": 0, "file_path": 0}    # exclude large fields
+        {"content_text": 0, "file_path": 0}
     ))
     for d in docs:
         d["_id"] = str(d["_id"])
@@ -133,10 +184,9 @@ def get_document_content(doc_id):
     )
     if not doc:
         return jsonify({"error": "Document not found"}), 404
-        
     return jsonify({
         "original_name": doc.get("original_name"),
-        "content_text": doc.get("content_text")
+        "content_text":  doc.get("content_text")
     }), 200
 
 
@@ -149,14 +199,11 @@ def delete_document(doc_id):
     doc     = db.documents.find_one({"_id": ObjectId(doc_id), "user_id": user_id})
     if not doc:
         return jsonify({"error": "Document not found"}), 404
-
-    # Remove file
     try:
         if os.path.exists(doc.get("file_path", "")):
             os.remove(doc["file_path"])
     except Exception:
         pass
-
     db.documents.delete_one({"_id": ObjectId(doc_id)})
     return jsonify({"message": "Document deleted"}), 200
 
@@ -165,11 +212,11 @@ def delete_document(doc_id):
 @learning_bp.route("/ask", methods=["POST"])
 @jwt_required()
 def ask_question():
-    user_id = get_jwt_identity()
-    data    = request.get_json()
-    doc_id  = data.get("document_id")
+    user_id  = get_jwt_identity()
+    data     = request.get_json()
+    doc_id   = data.get("document_id")
     question = data.get("question", "").strip()
-    lang    = data.get("language", "en")
+    lang     = data.get("language", "en")
 
     if not doc_id or not question:
         return jsonify({"error": "document_id and question are required"}), 400
@@ -182,14 +229,13 @@ def ask_question():
     context = doc.get("content_text", "")
     result  = answer_question(question, context)
 
-    # Optionally translate answer
     if lang != "en" and result.get("answer"):
         result["answer"] = translate_text(result["answer"], target_lang=lang)
 
     return jsonify({
-        "question": question,
-        "answer": result.get("answer", ""),
-        "confidence": result.get("score", 0),
+        "question":    question,
+        "answer":      result.get("answer", ""),
+        "confidence":  result.get("score", 0),
         "document_id": doc_id,
     }), 200
 
@@ -207,8 +253,6 @@ def summarize_document(doc_id):
     lang    = request.get_json(silent=True, force=True) or {}
     lang    = lang.get("language", "en")
     text    = doc.get("content_text", "")
-    
-    # Use the high-detail Groq summarizer
     summary = summarize_text_groq(text)
 
     if lang != "en" and summary:
@@ -242,7 +286,7 @@ def translate():
 
     translated = translate_text(text, target_lang=target, source_lang=source)
     return jsonify({
-        "original": text,
-        "translated": translated,
-        "target_language": target,
+        "original":         text,
+        "translated":       translated,
+        "target_language":  target,
     }), 200
