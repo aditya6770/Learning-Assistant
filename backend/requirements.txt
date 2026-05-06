@@ -13,20 +13,20 @@ requests==2.32.3
 python-dotenv==1.0.1
 
 # ── PDF & Document Processing ────────────────────────────────
-PyMuPDF==1.24.5                # Fast PDF text extraction (fitz)
-pdfplumber==0.11.0             # Alternative PDF extractor
+PyMuPDF==1.24.5
+pdfplumber==0.11.0
 
 # ── Computer Vision & Emotion Detection ──────────────────────
 opencv-python-headless==4.10.0.82
-tensorflow-cpu==2.15.0
-deepface>=0.0.92               # Primary emotion detector
-fer==22.5.1                    # Secondary/Fallback detector
+tensorflow-cpu==2.13.1          # ← changed from 2.15.0
+deepface==0.0.93                # ← pinned
+fer==22.5.1
 
 # ── NLP Utilities ────────────────────────────────────────────
-nltk==3.8.1                    # Used for quiz distractors (WordNet)
+nltk==3.8.1
 
 # ── Production Utilities ─────────────────────────────────────
-gunicorn==22.0.0               # Production WSGI server
+gunicorn==22.0.0
 werkzeug==3.0.3
 Pillow==10.3.0
-numpy>=1.24.0
+numpy>=1.24.0,<1.25.0           # ← constrained for TF 2.13.x

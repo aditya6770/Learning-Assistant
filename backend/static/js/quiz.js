@@ -514,36 +514,85 @@ function renderFixList() {
 async function loadFixVariant(idx) {
   const item = QS.fixList[idx];
   const varEl = document.getElementById(`fix-variant-${idx}`);
-  varEl.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;margin-top:8px;">Generating variant…</div>';
+  
+  // Animated Loader for Practice Variant
+  varEl.innerHTML = `
+    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; gap:12px;">
+      <div class="spinner" style="width:24px; height:24px; border-width:3px;"></div>
+      <div style="color:var(--text-muted); font-size:0.8rem; font-weight:500; letter-spacing:0.5px; animation: pulse 1.5s infinite;">Generating AI Practice Variant...</div>
+    </div>`;
+
   try {
     const q = await api('POST', '/quiz/fix_mistake', {
-      question: item.question, correct_answer: item.correct_answer, topic: item.topic
+      question: item.question, 
+      correct_answer: item.correct_answer, 
+      topic: item.topic
     });
+
+    if (!q || !q.question) throw new Error("AI failed to generate a valid variant.");
+
+    varEl.style.opacity = '0';
     varEl.innerHTML = `
-      <div style="margin-top:12px;padding:12px;background:rgba(99,102,241,0.06);border-radius:8px;">
-        <div style="font-weight:600;margin-bottom:8px;">${q.question}</div>
-        ${(q.options || []).map((opt, j) => `
-          <button class="btn btn-sm btn-outline" style="margin:3px 0;width:100%;text-align:left;"
-            onclick="checkFixAnswer(${idx},this,'${opt.replace(/'/g, "\\'")}','${(q.correct_answer || '').replace(/'/g, "\\'")}','${(q.explanation || '').replace(/'/g, "\\'")}')">
-            ${['A', 'B', 'C', 'D'][j]}. ${opt}
-          </button>`).join('')}
+      <div style="margin-top:16px; padding:16px; background:rgba(99,102,241,0.06); border:1px solid rgba(99,102,241,0.15); border-radius:12px; animation: slideUp 0.4s ease forwards;">
+        <div style="font-weight:700; margin-bottom:12px; color:var(--text); line-height:1.4;">${q.question}</div>
+        <div style="display:grid; grid-template-columns:1fr; gap:8px;">
+          ${(q.options || []).map((opt, j) => `
+            <button class="q-opt-btn" style="width:100%; text-align:left; padding:12px 16px;"
+              onclick="checkFixAnswer(${idx}, this, '${opt.replace(/'/g, "\\'")}', '${(q.correct_answer || '').replace(/'/g, "\\'")}', '${(q.explanation || '').replace(/'/g, "\\")}')">
+              <span style="opacity:0.5; margin-right:8px; font-weight:800;">${['A', 'B', 'C', 'D'][j]}</span> ${opt}
+            </button>`).join('')}
+        </div>
       </div>`;
-  } catch (e) { varEl.innerHTML = `<div style="color:var(--danger);font-size:0.82rem;">${e.message}</div>`; }
+    setTimeout(() => { varEl.style.opacity = '1'; }, 10);
+  } catch (e) { 
+    varEl.innerHTML = `
+      <div style="color:#ef4444; font-size:0.82rem; padding:12px; background:rgba(239,68,68,0.05); border-radius:8px; margin-top:10px; border:1px solid rgba(239,68,68,0.2);">
+        ⚠️ <strong>Error:</strong> ${e.message}. <button class="link-btn" onclick="loadFixVariant(${idx})" style="color:#ef4444; font-weight:700; text-decoration:underline; cursor:pointer;">Retry?</button>
+      </div>`; 
+  }
 }
 
 function checkFixAnswer(idx, btn, selected, correct, explanation) {
   const card = document.getElementById(`fix-card-${idx}`);
-  card.querySelectorAll('button').forEach(b => b.disabled = true);
-  if (selected.toLowerCase() === correct.toLowerCase()) {
+  const buttons = card.querySelectorAll('button');
+  buttons.forEach(b => b.disabled = true);
+
+  const cleanSel = selected.trim().toLowerCase();
+  const cleanCorr = correct.trim().toLowerCase();
+  const isCorrect = cleanSel === cleanCorr || cleanCorr.includes(cleanSel) || cleanSel.includes(cleanCorr);
+
+  if (isCorrect) {
     QS.fixList[idx].fixed = true;
-    btn.style.background = '#10b981'; btn.style.color = 'white';
-    card.insertAdjacentHTML('beforeend',
-      `<div style="color:#10b981;font-weight:600;margin-top:8px;">✅ Recovered! ${explanation}</div>`);
+    btn.classList.add('correct');
+    btn.style.background = '#10b981';
+    btn.style.color = 'white';
+    btn.style.borderColor = '#10b981';
+    
+    // Add success message with nice styling
+    const successMsg = document.createElement('div');
+    successMsg.style.cssText = 'color:#10b981; font-weight:700; margin-top:12px; padding:10px; background:rgba(16,185,129,0.08); border-radius:8px; font-size:0.85rem; animation: bounceIn 0.5s ease;';
+    successMsg.innerHTML = `✨ <strong>Recovered!</strong><br><span style="font-weight:400; font-size:0.8rem; opacity:0.9;">${explanation || 'Great job on fixing this mistake!'}</span>`;
+    card.appendChild(successMsg);
   } else {
-    btn.style.background = '#ef4444'; btn.style.color = 'white';
-    card.querySelectorAll('button').forEach(b => {
-      if (b !== btn && b.textContent.includes(correct)) { b.style.background = '#10b981'; b.style.color = 'white'; }
+    btn.classList.add('wrong');
+    btn.style.background = '#ef4444';
+    btn.style.color = 'white';
+    btn.style.borderColor = '#ef4444';
+
+    // Show the correct answer
+    buttons.forEach(b => {
+      const bText = b.textContent.toLowerCase();
+      if (b !== btn && (bText.includes(cleanCorr) || cleanCorr.includes(bText.replace(/^[A-D]\.\s*/, '')))) {
+        b.style.background = '#10b981';
+        b.style.color = 'white';
+        b.style.borderColor = '#10b981';
+      }
     });
+
+    const failMsg = document.createElement('div');
+    failMsg.style.cssText = 'color:#ef4444; font-weight:600; margin-top:12px; font-size:0.85rem;';
+    failMsg.textContent = '❌ Still not quite right. Review the correct answer above.';
+    card.appendChild(failMsg);
   }
 }
 

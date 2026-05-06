@@ -768,24 +768,30 @@ def fix_mistake():
     orig = d.get("question", "")
     ans  = d.get("correct_answer", "")
     topic = d.get("topic", ans)
+    import random
+    salt = random.randint(1000, 9999)
 
     system = (
         f"Create ONE new MCQ that tests the SAME concept as this question "
         f"but with different wording. Original: '{orig}'. Concept: '{topic}'.\n"
-        "Respond ONLY with valid JSON — no markdown:\n"
-        '{"question":"...","options":["A","B","C","D"],"correct_answer":"A","explanation":"..."}'
+        "Rules:\n"
+        "- The correct answer MUST be scientifically/logically accurate.\n"
+        "- Options must be plausible distractors.\n"
+        "- Respond ONLY with valid JSON — no markdown.\n"
+        'Structure: {"question":"...","options":["A","B","C","D"],"correct_answer":"Exact Option Text","explanation":"Brief why."}'
     )
+    user_content = f"Generate a unique variant for: {orig}. Salt: {salt}"
     try:
         raw = _groq_call([{"role":"system","content":system},
-                          {"role":"user","content":"Generate the variant now."}],
-                         max_tokens=500, temp=0.7)
+                          {"role":"user","content":user_content}],
+                         max_tokens=500, temp=0.8)
         q = json.loads(_clean_json(raw))
         if len(q.get("options", [])) != 4:
             q["options"] = (q.get("options", []) + ["A","B","C","D"])[:4]
         return jsonify(q), 200
     except Exception as e:
         logger.error("fix_mistake: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "AI variant generation failed. Please try again."}), 500
 
 
 # ══════════════════════════════════════════════════════════════

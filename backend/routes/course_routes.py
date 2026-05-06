@@ -102,8 +102,8 @@ COURSES = [
             {
                 "title": "Module 2: Arrays & String Manipulation",
                 "lessons": [
-                    {"id": "dsa_l3", "title": "Dynamic Arrays Implementation", "video": "https://www.youtube.com/embed/q_vIAn-oJ_0", "duration": "13:58"},
-                    {"id": "dsa_l4", "title": "Sliding Window Technique", "video": "https://www.youtube.com/embed/jM28UBHD86U", "duration": "17:15"}
+                    {"id": "dsa_l3", "title": "Dynamic Arrays Implementation", "video": "https://www.youtube.com/embed/e1K_dx9ZtxY", "duration": "13:58"},
+                    {"id": "dsa_l4", "title": "Sliding Window Technique", "video": "https://www.youtube.com/embed/uqGxFk0cEdI", "duration": "17:15"}
                 ]
             }
         ]

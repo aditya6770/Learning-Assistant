@@ -506,8 +506,11 @@
                   <button class="course-tab" onclick="switchCourseTab('quiz')">Practice Quiz</button>
                 </div>
                 <div id="course-tab-summary" class="course-tab-content">
-                  <div id="ai-summary-text" class="ai-summary-content" style="font-size:0.95rem; line-height:1.7; color:var(--text); max-height:400px; overflow-y:auto; padding-right:10px;">
-                    Select a lesson to see AI-generated key points.
+                  <div id="ai-summary-text" class="ai-summary-content" style="font-size:0.95rem; line-height:1.7; color:var(--text); height:480px; width:100%; overflow-y:auto; padding:24px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:12px; box-sizing:border-box; position:relative;">
+                    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:var(--text-muted); opacity:0.6;">
+                      <div style="font-size:3rem; margin-bottom:12px;">📖</div>
+                      <p>Select a lesson to see AI-generated key points.</p>
+                    </div>
                   </div>
                 </div>
                 <div id="course-tab-notes" class="course-tab-content" style="display:none;">

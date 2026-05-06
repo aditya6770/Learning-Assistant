@@ -251,18 +251,25 @@ async function loadLessonSummary(lessonId) {
     }
 
     el.innerHTML = `
-        <div class="text-center" style="padding:40px;">
-            <div style="font-size:3rem; margin-bottom:15px;">📖</div>
-            <h3>Lesson Guide</h3>
-            <p class="text-muted" style="margin-bottom:20px;">Generate a custom technical summary with Nemotron AI</p>
-            <button class="btn btn-primary" onclick="generateLessonSummary('${lessonId}')">✨ Generate AI Summary</button>
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; text-align:center; padding:20px;">
+            <div style="font-size:3.5rem; margin-bottom:20px; filter: drop-shadow(0 10px 15px rgba(0,0,0,0.2));">📖</div>
+            <h3 style="margin-bottom:12px;">Lesson Guide</h3>
+            <p class="text-muted" style="margin-bottom:24px; max-width:280px; font-size:0.9rem;">Get a technical breakdown of this lesson powered by Nemotron AI.</p>
+            <button class="btn btn-primary" onclick="generateLessonSummary('${lessonId}')" style="box-shadow: 0 10px 20px -5px rgba(99,102,241,0.4);">✨ Generate AI Summary</button>
         </div>
     `;
 }
 
 async function generateLessonSummary(lessonId) {
     const el = document.getElementById('ai-summary-text');
-    el.innerHTML = '<div class="text-center" style="padding:40px;"><div class="spinner"></div><p>Nemotron AI is analyzing the topic...</p></div>';
+    el.innerHTML = `
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; gap:20px;">
+            <div class="spinner" style="width:40px; height:40px; border-width:4px;"></div>
+            <div style="text-align:center;">
+                <h4 style="margin-bottom:8px; animation: pulse 2s infinite;">Analyzing Topic...</h4>
+                <p class="text-muted" style="font-size:0.85rem;">Nemotron AI is crafting your custom technical summary</p>
+            </div>
+        </div>`;
     
     try {
         const res = await api('GET', `/courses/lesson/${lessonId}/summary?refresh=true`);
