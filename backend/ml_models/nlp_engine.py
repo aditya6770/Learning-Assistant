@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 GROQ_URL        = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL      = "llama-3.1-8b-instant"
 OPENROUTER_URL  = "https://openrouter.ai/api/v1/chat/completions"
-OPENROUTER_MODEL = "nvidia/llama-3.1-nemotron-nano-vl-8b-v1:free"
+OPENROUTER_MODEL = "google/gemini-2.0-flash-exp:free"
 
 
 def _groq_headers():
