@@ -46,13 +46,30 @@ def _groq_chat(prompt: str, system: str = "You are a helpful AI assistant.", max
 # ── PDF Extraction ─────────────────────────────────────────────
 def extract_text_from_pdf(file_path: str) -> str:
     """Extract plain text from PDF using PyMuPDF then pdfplumber."""
+    
+    # Debug checks
+    if not os.path.exists(file_path):
+        logger.error(f"File does not exist: {file_path}")
+        return ""
+    
+    file_size = os.path.getsize(file_path)
+    logger.info(f"Extracting PDF: {file_path}, size: {file_size} bytes")
+    
+    if file_size == 0:
+        logger.error("File is empty (0 bytes)")
+        return ""
+
     try:
         import fitz
         doc  = fitz.open(file_path)
+        pages = len(doc)
         text = "\n".join(page.get_text() for page in doc)
         doc.close()
+        logger.info(f"PyMuPDF extracted {len(text)} chars from {pages} pages")
         if text.strip():
             return _clean_text(text)
+        else:
+            logger.warning("PyMuPDF returned empty text")
     except Exception as e:
         logger.warning(f"PyMuPDF failed: {e}")
 
@@ -60,8 +77,11 @@ def extract_text_from_pdf(file_path: str) -> str:
         import pdfplumber
         with pdfplumber.open(file_path) as pdf:
             text = "\n".join(p.extract_text() or "" for p in pdf.pages)
+        logger.info(f"pdfplumber extracted {len(text)} chars")
         if text.strip():
             return _clean_text(text)
+        else:
+            logger.warning("pdfplumber returned empty text")
     except Exception as e:
         logger.error(f"pdfplumber failed: {e}")
 
