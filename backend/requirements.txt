@@ -30,4 +30,6 @@ nltk==3.8.1
 gunicorn==22.0.0
 werkzeug==3.0.3
 Pillow==10.4.0
-numpy>=1.24.0          # ← constrained for TF 2.13.x
+numpy>=1.24.0  # ← constrained for TF 2.13.x
+yake==0.4.8
+googletrans==4.0.0rc1
