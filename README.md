@@ -8,6 +8,8 @@ Application Live on https://learning-assistant-a7n9.onrender.com
 
 A full-stack AI-powered personalized learning assistant that adapts to each student's performance, emotions, and learning style. The system combines NLP, computer vision, and adaptive algorithms to deliver a tailored educational experience.
 
+Sometimes it take 2 min to start.
+
 ### Core Features
 
 | Feature | Technology Used |
